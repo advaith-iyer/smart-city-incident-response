@@ -1,0 +1,100 @@
+{
+  "world_version": "1.0",
+  "_merge_note": "This file is a standalone dev copy of factory-related world data. Once frozen, copy the 'factories' and 'district_industrial_authority' keys straight into the shared city_state.json alongside hospitals/dispensaries/ambulances.",
+
+  "factories": [
+    {
+      "id": "F1",
+      "name": "Central Steel Works",
+      "location": { "lat": 21.253, "lng": 81.633, "area_name": "Central City" },
+      "hazmat_on_site": false,
+      "contact": "F1_notify",
+      "sections": [
+        {
+          "section_id": "F1-A",
+          "name": "Press Assembly Floor",
+          "occupied": true,
+          "worker_roster": ["F1-W01", "F1-W02", "F1-W03", "F1-W04", "F1-W05"]
+        },
+        {
+          "section_id": "F1-B",
+          "name": "Loading Bay",
+          "occupied": false,
+          "worker_roster": ["F1-W06", "F1-W07"]
+        }
+      ],
+      "machinery": [
+        { "id": "F1-M1", "name": "Hydraulic Press Line 1", "section_id": "F1-A", "status": "running" },
+        { "id": "F1-M2", "name": "Conveyor Belt 2", "section_id": "F1-B", "status": "running" }
+      ],
+      "safety_team": [
+        { "id": "F1-SO1", "role": "safety_officer", "name": "Officer Rao", "status": "available" },
+        { "id": "F1-TECH1", "role": "technician", "name": "Tech Singh", "status": "available" },
+        { "id": "F1-ELEC1", "role": "electrician", "name": "Elec Verma", "status": "available" },
+        { "id": "F1-MED1", "role": "first_aid", "name": "Nurse Iyer", "status": "available" }
+      ],
+      "equipment": [
+        { "id": "F1-EQ1", "type": "fire_extinguisher", "quantity": 6, "available": 6 },
+        { "id": "F1-EQ2", "type": "ppe_hazmat_suit", "quantity": 2, "available": 2 },
+        { "id": "F1-EQ3", "type": "spare_parts_kit", "quantity": 3, "available": 3 }
+      ]
+    },
+    {
+      "id": "F2",
+      "name": "Riverside Chemical Plant",
+      "location": { "lat": 21.269, "lng": 81.652, "area_name": "Riverside" },
+      "hazmat_on_site": true,
+      "contact": "F2_notify",
+      "sections": [
+        {
+          "section_id": "F2-A",
+          "name": "Mixing & Storage Hall",
+          "occupied": true,
+          "worker_roster": ["F2-W01", "F2-W02", "F2-W03"]
+        }
+      ],
+      "machinery": [
+        { "id": "F2-M1", "name": "Mixing Tank 3", "section_id": "F2-A", "status": "running" }
+      ],
+      "safety_team": [
+        { "id": "F2-SO1", "role": "safety_officer", "name": "Officer Khan", "status": "available" },
+        { "id": "F2-MED1", "role": "first_aid", "name": "Paramedic Das", "status": "available" }
+      ],
+      "equipment": [
+        { "id": "F2-EQ1", "type": "gas_detector", "quantity": 2, "available": 2 },
+        { "id": "F2-EQ2", "type": "ppe_hazmat_suit", "quantity": 5, "available": 5 },
+        { "id": "F2-EQ3", "type": "fire_extinguisher", "quantity": 4, "available": 4 }
+      ]
+    },
+    {
+      "id": "F3",
+      "name": "Old Town Textile Mill",
+      "location": { "lat": 21.242, "lng": 81.615, "area_name": "Old Town" },
+      "hazmat_on_site": false,
+      "contact": "F3_notify",
+      "sections": [
+        {
+          "section_id": "F3-A",
+          "name": "Weaving Floor",
+          "occupied": true,
+          "worker_roster": ["F3-W01", "F3-W02"]
+        }
+      ],
+      "machinery": [
+        { "id": "F3-M1", "name": "Weaving Loom 4", "section_id": "F3-A", "status": "stopped" }
+      ],
+      "safety_team": [
+        { "id": "F3-SO1", "role": "safety_officer", "name": "Officer Patel", "status": "available" }
+      ],
+      "equipment": [
+        { "id": "F3-EQ1", "type": "fire_extinguisher", "quantity": 2, "available": 2 }
+      ]
+    }
+  ],
+
+  "district_industrial_authority": {
+    "id": "DIA1",
+    "name": "District Industrial Safety Authority",
+    "contact": "DIA1_notify"
+  }
+}

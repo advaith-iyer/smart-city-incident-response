@@ -1,0 +1,141 @@
+{
+  "city_state_version": "1.0",
+  "city": {
+    "name": "Demo City",
+    "description": "Shared mock environment for the Smart City Incident Response Agent"
+  },
+  "hospitals": [
+    {
+      "id": "H1",
+      "name": "City General Hospital",
+      "location": {
+        "lat": 21.25,
+        "lng": 81.63,
+        "area_name": "Central City"
+      },
+      "capacity": 20,
+      "current_load": 14,
+      "available_capacity": 6,
+      "contact": "H1_notify",
+      "services": [
+        "emergency",
+        "trauma",
+        "general"
+      ]
+    },
+    {
+      "id": "H2",
+      "name": "Riverside Hospital",
+      "location": {
+        "lat": 21.27,
+        "lng": 81.655,
+        "area_name": "Riverside"
+      },
+      "capacity": 12,
+      "current_load": 12,
+      "available_capacity": 0,
+      "contact": "H2_notify",
+      "services": [
+        "emergency",
+        "general"
+      ]
+    },
+    {
+      "id": "H3",
+      "name": "St. Mary's Medical Center",
+      "location": {
+        "lat": 21.238,
+        "lng": 81.61,
+        "area_name": "South Ward"
+      },
+      "capacity": 15,
+      "current_load": 6,
+      "available_capacity": 9,
+      "contact": "H3_notify",
+      "services": [
+        "emergency",
+        "trauma",
+        "general"
+      ]
+    }
+  ],
+  "dispensaries": [
+    {
+      "id": "D1",
+      "name": "North Ward Dispensary",
+      "location": {
+        "lat": 21.26,
+        "lng": 81.64,
+        "area_name": "North Ward"
+      },
+      "capacity": 5,
+      "current_load": 2,
+      "available_capacity": 3,
+      "supplies": [
+        "first_aid",
+        "oxygen",
+        "basic_meds"
+      ],
+      "contact": "D1_notify"
+    },
+    {
+      "id": "D2",
+      "name": "Old Town Dispensary",
+      "location": {
+        "lat": 21.245,
+        "lng": 81.62,
+        "area_name": "Old Town"
+      },
+      "capacity": 4,
+      "current_load": 4,
+      "available_capacity": 0,
+      "supplies": [
+        "first_aid",
+        "basic_meds"
+      ],
+      "contact": "D2_notify"
+    }
+  ],
+  "ambulances": [
+    {
+      "id": "A1",
+      "name": "Unit 1",
+      "location": {
+        "lat": 21.255,
+        "lng": 81.635,
+        "area_name": "Central City"
+      },
+      "status": "available",
+      "crew": "medical",
+      "capabilities": [
+        "basic_life_support",
+        "patient_transport"
+      ]
+    },
+    {
+      "id": "A2",
+      "name": "Unit 2",
+      "location": {
+        "lat": 21.265,
+        "lng": 81.65,
+        "area_name": "Riverside"
+      },
+      "status": "available",
+      "crew": "medical",
+      "capabilities": [
+        "basic_life_support",
+        "patient_transport"
+      ]
+    }
+  ],
+  "fire_units": [],
+  "industrial_resources": [],
+  "traffic_resources": [],
+  "roads": [],
+  "active_incidents": [],
+  "system_state": {
+    "emergency_mode": false,
+    "last_updated": null,
+    "alerts": []
+  }
+}

@@ -1,0 +1,56 @@
+[
+  {
+    "incident_id": "INC-M001",
+    "type": "medical",
+    "location": {"lat": 21.2560, "lng": 81.6360, "area_name": "Market Square"},
+    "reported_by": "reporter_101",
+    "raw_description": "Elderly man collapsed, unconscious, not responding.",
+    "timestamp": "2026-09-10T09:15:00",
+    "confidence": 0.9,
+    "status": "reported"
+  },
+  {
+    "incident_id": "INC-M002",
+    "type": "medical",
+    "location": {"lat": 21.2410, "lng": 81.6150, "area_name": "Old Town Bus Stop"},
+    "reported_by": "reporter_102",
+    "raw_description": "Person twisted ankle while getting off the bus, minor swelling, able to talk normally.",
+    "timestamp": "2026-09-10T09:20:00",
+    "confidence": 0.7,
+    "status": "reported"
+  },
+  {
+    "incident_id": "INC-M003",
+    "type": "medical",
+    "location": {"lat": 21.2695, "lng": 81.6545, "area_name": "Riverside Colony"},
+    "reported_by": "reporter_103",
+    "raw_description": "Woman having severe chest pain and difficulty breathing.",
+    "timestamp": "2026-09-10T09:25:00",
+    "confidence": 0.85,
+    "status": "reported",
+    "_note": "Tests hospital-capacity-awareness fallback: nearest hospital (H2) is at full capacity, so system must route to next best option."
+  },
+  {
+    "incident_id": "INC-M004",
+    "type": "medical",
+    "location": {"lat": 21.2530, "lng": 81.6330, "area_name": "Central Park"},
+    "reported_by": "reporter_104",
+    "raw_description": "Child fell off a bicycle, crying, small cut on knee, seems okay otherwise.",
+    "timestamp": "2026-09-10T09:30:00",
+    "confidence": 0.6,
+    "status": "reported",
+    "_note": "Tests monitor/adapt loop: simulate_escalation flag below causes severity to increase mid-monitoring.",
+    "_simulate_escalation": true
+  },
+  {
+    "incident_id": "INC-M005",
+    "type": "medical",
+    "location": {"lat": 21.2440, "lng": 81.6190, "area_name": "Old Town Market"},
+    "reported_by": "reporter_105",
+    "raw_description": "Person feeling dizzy and nauseous, possibly heat exhaustion.",
+    "timestamp": "2026-09-10T09:35:00",
+    "confidence": 0.65,
+    "status": "reported",
+    "_note": "Tests resource-unavailable fallback: nearest dispensary (D2) is at full capacity."
+  }
+]

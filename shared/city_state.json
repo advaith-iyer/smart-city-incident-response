@@ -1,0 +1,690 @@
+{
+  "city_state_version": "1.0",
+  "city": {
+    "name": "Demo City",
+    "description": "Shared mock environment for the Smart City Incident Response Agent"
+  },
+  "hospitals": [
+    {
+      "id": "H1",
+      "name": "City General Hospital",
+      "location": {
+        "lat": 21.25,
+        "lng": 81.63,
+        "area_name": "Central City"
+      },
+      "capacity": 20,
+      "current_load": 14,
+      "available_capacity": 6,
+      "contact": "H1_notify",
+      "services": [
+        "emergency",
+        "trauma",
+        "general"
+      ]
+    },
+    {
+      "id": "H2",
+      "name": "Riverside Hospital",
+      "location": {
+        "lat": 21.27,
+        "lng": 81.655,
+        "area_name": "Riverside"
+      },
+      "capacity": 12,
+      "current_load": 12,
+      "available_capacity": 0,
+      "contact": "H2_notify",
+      "services": [
+        "emergency",
+        "general"
+      ]
+    },
+    {
+      "id": "H3",
+      "name": "St. Mary's Medical Center",
+      "location": {
+        "lat": 21.238,
+        "lng": 81.61,
+        "area_name": "South Ward"
+      },
+      "capacity": 15,
+      "current_load": 6,
+      "available_capacity": 9,
+      "contact": "H3_notify",
+      "services": [
+        "emergency",
+        "trauma",
+        "general"
+      ]
+    }
+  ],
+  "dispensaries": [
+    {
+      "id": "D1",
+      "name": "North Ward Dispensary",
+      "location": {
+        "lat": 21.26,
+        "lng": 81.64,
+        "area_name": "North Ward"
+      },
+      "capacity": 5,
+      "current_load": 2,
+      "available_capacity": 3,
+      "supplies": [
+        "first_aid",
+        "oxygen",
+        "basic_meds"
+      ],
+      "contact": "D1_notify"
+    },
+    {
+      "id": "D2",
+      "name": "Old Town Dispensary",
+      "location": {
+        "lat": 21.245,
+        "lng": 81.62,
+        "area_name": "Old Town"
+      },
+      "capacity": 4,
+      "current_load": 4,
+      "available_capacity": 0,
+      "supplies": [
+        "first_aid",
+        "basic_meds"
+      ],
+      "contact": "D2_notify"
+    }
+  ],
+  "ambulances": [
+    {
+      "id": "A1",
+      "name": "Unit 1",
+      "location": {
+        "lat": 21.255,
+        "lng": 81.635,
+        "area_name": "Central City"
+      },
+      "status": "available",
+      "crew": "medical",
+      "capabilities": [
+        "basic_life_support",
+        "patient_transport"
+      ]
+    },
+    {
+      "id": "A2",
+      "name": "Unit 2",
+      "location": {
+        "lat": 21.265,
+        "lng": 81.65,
+        "area_name": "Riverside"
+      },
+      "status": "available",
+      "crew": "medical",
+      "capabilities": [
+        "basic_life_support",
+        "patient_transport"
+      ]
+    }
+  ],
+  "fire_units": [
+    {
+      "id": "FT1",
+      "name": "Fire Tender 1",
+      "location": {
+        "lat": 21.25,
+        "lng": 81.63,
+        "area_name": "Central Fire Station"
+      },
+      "status": "available",
+      "capabilities": [
+        "fire_suppression",
+        "hazmat_response"
+      ]
+    },
+    {
+      "id": "FT2",
+      "name": "Fire Tender 2",
+      "location": {
+        "lat": 21.27,
+        "lng": 81.655,
+        "area_name": "Riverside Fire Station"
+      },
+      "status": "available",
+      "capabilities": [
+        "fire_suppression"
+      ]
+    }
+  ],
+  "industrial_resources": [],
+  "traffic_resources": [
+    {
+      "id": "TC1",
+      "name": "Central Traffic Control Point",
+      "location": {
+        "lat": 21.252,
+        "lng": 81.632,
+        "area_name": "Central City"
+      },
+      "crew_available": true,
+      "contact": "TC1_notify"
+    },
+    {
+      "id": "TC2",
+      "name": "North Traffic Control Point",
+      "location": {
+        "lat": 21.263,
+        "lng": 81.642,
+        "area_name": "North Ward"
+      },
+      "crew_available": true,
+      "contact": "TC2_notify"
+    },
+    {
+      "id": "TC3",
+      "name": "Riverside Traffic Control Point",
+      "location": {
+        "lat": 21.268,
+        "lng": 81.652,
+        "area_name": "Riverside"
+      },
+      "crew_available": true,
+      "contact": "TC3_notify"
+    }
+  ],
+  "roads": {
+    "nodes": [
+      {
+        "id": "J1",
+        "lat": 21.25,
+        "lng": 81.63,
+        "name": "Central Junction"
+      },
+      {
+        "id": "J2",
+        "lat": 21.255,
+        "lng": 81.635,
+        "name": "Market Junction"
+      },
+      {
+        "id": "J3",
+        "lat": 21.26,
+        "lng": 81.64,
+        "name": "North Junction"
+      },
+      {
+        "id": "J4",
+        "lat": 21.245,
+        "lng": 81.62,
+        "name": "Old Town Junction"
+      },
+      {
+        "id": "J5",
+        "lat": 21.238,
+        "lng": 81.61,
+        "name": "South Ward Junction"
+      },
+      {
+        "id": "J6",
+        "lat": 21.25,
+        "lng": 81.615,
+        "name": "South Central Junction"
+      },
+      {
+        "id": "J7",
+        "lat": 21.26,
+        "lng": 81.65,
+        "name": "East Junction"
+      },
+      {
+        "id": "J8",
+        "lat": 21.265,
+        "lng": 81.655,
+        "name": "Riverside Junction"
+      },
+      {
+        "id": "J9",
+        "lat": 21.27,
+        "lng": 81.655,
+        "name": "Riverside North Junction"
+      },
+      {
+        "id": "J10",
+        "lat": 21.255,
+        "lng": 81.65,
+        "name": "East Central Junction"
+      },
+      {
+        "id": "J11",
+        "lat": 21.265,
+        "lng": 81.645,
+        "name": "North East Junction"
+      },
+      {
+        "id": "J12",
+        "lat": 21.238,
+        "lng": 81.625,
+        "name": "South East Junction"
+      }
+    ],
+    "edges": [
+      {
+        "id": "R1",
+        "from": "J1",
+        "to": "J2",
+        "distance_km": 0.8,
+        "blocked": false
+      },
+      {
+        "id": "R2",
+        "from": "J2",
+        "to": "J3",
+        "distance_km": 0.8,
+        "blocked": false
+      },
+      {
+        "id": "R3",
+        "from": "J1",
+        "to": "J4",
+        "distance_km": 1.2,
+        "blocked": false
+      },
+      {
+        "id": "R4",
+        "from": "J4",
+        "to": "J5",
+        "distance_km": 1.1,
+        "blocked": false
+      },
+      {
+        "id": "R5",
+        "from": "J5",
+        "to": "J6",
+        "distance_km": 1.0,
+        "blocked": false
+      },
+      {
+        "id": "R6",
+        "from": "J6",
+        "to": "J1",
+        "distance_km": 1.1,
+        "blocked": false
+      },
+      {
+        "id": "R7",
+        "from": "J2",
+        "to": "J10",
+        "distance_km": 1.1,
+        "blocked": true
+      },
+      {
+        "id": "R8",
+        "from": "J10",
+        "to": "J7",
+        "distance_km": 0.9,
+        "blocked": false
+      },
+      {
+        "id": "R9",
+        "from": "J7",
+        "to": "J8",
+        "distance_km": 0.8,
+        "blocked": false
+      },
+      {
+        "id": "R10",
+        "from": "J8",
+        "to": "J9",
+        "distance_km": 0.6,
+        "blocked": false
+      },
+      {
+        "id": "R11",
+        "from": "J3",
+        "to": "J11",
+        "distance_km": 0.7,
+        "blocked": false
+      },
+      {
+        "id": "R12",
+        "from": "J11",
+        "to": "J7",
+        "distance_km": 0.7,
+        "blocked": false
+      },
+      {
+        "id": "R13",
+        "from": "J6",
+        "to": "J12",
+        "distance_km": 1.0,
+        "blocked": false
+      },
+      {
+        "id": "R14",
+        "from": "J12",
+        "to": "J5",
+        "distance_km": 1.0,
+        "blocked": false
+      },
+      {
+        "id": "R15",
+        "from": "J10",
+        "to": "J6",
+        "distance_km": 1.3,
+        "blocked": false
+      },
+      {
+        "id": "R16",
+        "from": "J10",
+        "to": "J11",
+        "distance_km": 0.8,
+        "blocked": false
+      },
+      {
+        "id": "R17",
+        "from": "J3",
+        "to": "J2",
+        "distance_km": 0.8,
+        "blocked": false
+      },
+      {
+        "id": "R18",
+        "from": "J2",
+        "to": "J1",
+        "distance_km": 0.8,
+        "blocked": false
+      },
+      {
+        "id": "R19",
+        "from": "J10",
+        "to": "J2",
+        "distance_km": 1.1,
+        "blocked": false
+      },
+      {
+        "id": "R20",
+        "from": "J7",
+        "to": "J10",
+        "distance_km": 0.9,
+        "blocked": false
+      },
+      {
+        "id": "R21",
+        "from": "J8",
+        "to": "J7",
+        "distance_km": 0.8,
+        "blocked": false
+      },
+      {
+        "id": "R22",
+        "from": "J9",
+        "to": "J8",
+        "distance_km": 0.6,
+        "blocked": false
+      },
+      {
+        "id": "R23",
+        "from": "J11",
+        "to": "J3",
+        "distance_km": 0.7,
+        "blocked": false
+      },
+      {
+        "id": "R24",
+        "from": "J7",
+        "to": "J11",
+        "distance_km": 0.7,
+        "blocked": false
+      },
+      {
+        "id": "R25",
+        "from": "J12",
+        "to": "J6",
+        "distance_km": 1.0,
+        "blocked": false
+      },
+      {
+        "id": "R26",
+        "from": "J5",
+        "to": "J12",
+        "distance_km": 1.0,
+        "blocked": false
+      },
+      {
+        "id": "R27",
+        "from": "J6",
+        "to": "J10",
+        "distance_km": 1.3,
+        "blocked": false
+      },
+      {
+        "id": "R28",
+        "from": "J11",
+        "to": "J10",
+        "distance_km": 0.8,
+        "blocked": false
+      }
+    ]
+  },
+  "active_incidents": [],
+  "system_state": {
+    "emergency_mode": false,
+    "last_updated": null,
+    "alerts": []
+  },
+  "fire_history": [],
+  "danger_zones": [],
+  "factories": [
+    {
+      "id": "F1",
+      "name": "Central Steel Works",
+      "location": {
+        "lat": 21.253,
+        "lng": 81.633,
+        "area_name": "Central City"
+      },
+      "hazmat_on_site": false,
+      "contact": "F1_notify",
+      "sections": [
+        {
+          "section_id": "F1-A",
+          "name": "Press Assembly Floor",
+          "occupied": true,
+          "worker_roster": [
+            "F1-W01",
+            "F1-W02",
+            "F1-W03",
+            "F1-W04",
+            "F1-W05"
+          ]
+        },
+        {
+          "section_id": "F1-B",
+          "name": "Loading Bay",
+          "occupied": false,
+          "worker_roster": [
+            "F1-W06",
+            "F1-W07"
+          ]
+        }
+      ],
+      "machinery": [
+        {
+          "id": "F1-M1",
+          "name": "Hydraulic Press Line 1",
+          "section_id": "F1-A",
+          "status": "running"
+        },
+        {
+          "id": "F1-M2",
+          "name": "Conveyor Belt 2",
+          "section_id": "F1-B",
+          "status": "running"
+        }
+      ],
+      "safety_team": [
+        {
+          "id": "F1-SO1",
+          "role": "safety_officer",
+          "name": "Officer Rao",
+          "status": "available"
+        },
+        {
+          "id": "F1-TECH1",
+          "role": "technician",
+          "name": "Tech Singh",
+          "status": "available"
+        },
+        {
+          "id": "F1-ELEC1",
+          "role": "electrician",
+          "name": "Elec Verma",
+          "status": "available"
+        },
+        {
+          "id": "F1-MED1",
+          "role": "first_aid",
+          "name": "Nurse Iyer",
+          "status": "available"
+        }
+      ],
+      "equipment": [
+        {
+          "id": "F1-EQ1",
+          "type": "fire_extinguisher",
+          "quantity": 6,
+          "available": 6
+        },
+        {
+          "id": "F1-EQ2",
+          "type": "ppe_hazmat_suit",
+          "quantity": 2,
+          "available": 2
+        },
+        {
+          "id": "F1-EQ3",
+          "type": "spare_parts_kit",
+          "quantity": 3,
+          "available": 3
+        }
+      ]
+    },
+    {
+      "id": "F2",
+      "name": "Riverside Chemical Plant",
+      "location": {
+        "lat": 21.269,
+        "lng": 81.652,
+        "area_name": "Riverside"
+      },
+      "hazmat_on_site": true,
+      "contact": "F2_notify",
+      "sections": [
+        {
+          "section_id": "F2-A",
+          "name": "Mixing & Storage Hall",
+          "occupied": true,
+          "worker_roster": [
+            "F2-W01",
+            "F2-W02",
+            "F2-W03"
+          ]
+        }
+      ],
+      "machinery": [
+        {
+          "id": "F2-M1",
+          "name": "Mixing Tank 3",
+          "section_id": "F2-A",
+          "status": "running"
+        }
+      ],
+      "safety_team": [
+        {
+          "id": "F2-SO1",
+          "role": "safety_officer",
+          "name": "Officer Khan",
+          "status": "available"
+        },
+        {
+          "id": "F2-MED1",
+          "role": "first_aid",
+          "name": "Paramedic Das",
+          "status": "available"
+        }
+      ],
+      "equipment": [
+        {
+          "id": "F2-EQ1",
+          "type": "gas_detector",
+          "quantity": 2,
+          "available": 2
+        },
+        {
+          "id": "F2-EQ2",
+          "type": "ppe_hazmat_suit",
+          "quantity": 5,
+          "available": 5
+        },
+        {
+          "id": "F2-EQ3",
+          "type": "fire_extinguisher",
+          "quantity": 4,
+          "available": 4
+        }
+      ]
+    },
+    {
+      "id": "F3",
+      "name": "Old Town Textile Mill",
+      "location": {
+        "lat": 21.242,
+        "lng": 81.615,
+        "area_name": "Old Town"
+      },
+      "hazmat_on_site": false,
+      "contact": "F3_notify",
+      "sections": [
+        {
+          "section_id": "F3-A",
+          "name": "Weaving Floor",
+          "occupied": true,
+          "worker_roster": [
+            "F3-W01",
+            "F3-W02"
+          ]
+        }
+      ],
+      "machinery": [
+        {
+          "id": "F3-M1",
+          "name": "Weaving Loom 4",
+          "section_id": "F3-A",
+          "status": "stopped"
+        }
+      ],
+      "safety_team": [
+        {
+          "id": "F3-SO1",
+          "role": "safety_officer",
+          "name": "Officer Patel",
+          "status": "available"
+        }
+      ],
+      "equipment": [
+        {
+          "id": "F3-EQ1",
+          "type": "fire_extinguisher",
+          "quantity": 2,
+          "available": 2
+        }
+      ]
+    }
+  ],
+  "district_industrial_authority": {
+    "id": "DIA1",
+    "name": "District Industrial Safety Authority",
+    "contact": "DIA1_notify"
+  }
+}

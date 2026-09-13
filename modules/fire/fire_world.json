@@ -1,0 +1,36 @@
+{
+  "fire_units": [
+    {
+      "id": "FT1",
+      "name": "Fire Tender 1",
+      "location": {
+        "lat": 21.25,
+        "lng": 81.63,
+        "area_name": "Central Fire Station"
+      },
+      "status": "available",
+      "capabilities": [
+        "fire_suppression",
+        "hazmat_response"
+      ]
+    },
+    {
+      "id": "FT2",
+      "name": "Fire Tender 2",
+      "location": {
+        "lat": 21.27,
+        "lng": 81.655,
+        "area_name": "Riverside Fire Station"
+      },
+      "status": "available",
+      "capabilities": [
+        "fire_suppression"
+      ]
+    }
+  ],
+  "fire_history": [],
+  "danger_zones": [],
+  "system_state": {
+    "alerts": []
+  }
+}

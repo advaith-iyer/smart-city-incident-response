@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: smart-city-incident-response
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn server.app:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: USE_LLM_SEVERITY
+        value: "1"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: "openai/gpt-oss-20b"

@@ -1,0 +1,71 @@
+{
+  "hospitals": [
+    {
+      "id": "H1",
+      "name": "City General Hospital",
+      "lat": 21.2500,
+      "lng": 81.6300,
+      "capacity": 20,
+      "current_load": 14,
+      "contact": "H1_notify"
+    },
+    {
+      "id": "H2",
+      "name": "Riverside Hospital",
+      "lat": 21.2700,
+      "lng": 81.6550,
+      "capacity": 12,
+      "current_load": 12,
+      "contact": "H2_notify"
+    },
+    {
+      "id": "H3",
+      "name": "St. Mary's Medical Center",
+      "lat": 21.2380,
+      "lng": 81.6100,
+      "capacity": 15,
+      "current_load": 6,
+      "contact": "H3_notify"
+    }
+  ],
+  "dispensaries": [
+    {
+      "id": "D1",
+      "name": "North Ward Dispensary",
+      "lat": 21.2600,
+      "lng": 81.6400,
+      "capacity": 5,
+      "current_load": 2,
+      "supplies": ["first_aid", "oxygen", "basic_meds"],
+      "contact": "D1_notify"
+    },
+    {
+      "id": "D2",
+      "name": "Old Town Dispensary",
+      "lat": 21.2450,
+      "lng": 81.6200,
+      "capacity": 4,
+      "current_load": 4,
+      "supplies": ["first_aid", "basic_meds"],
+      "contact": "D2_notify"
+    }
+  ],
+  "ambulances": [
+    {
+      "id": "A1",
+      "name": "Ambulance Unit 1",
+      "lat": 21.2550,
+      "lng": 81.6350,
+      "status": "available",
+      "contact": "A1_notify"
+    },
+    {
+      "id": "A2",
+      "name": "Ambulance Unit 2",
+      "lat": 21.2650,
+      "lng": 81.6500,
+      "status": "available",
+      "contact": "A2_notify"
+    }
+  ]
+}
