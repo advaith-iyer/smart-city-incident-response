@@ -39,7 +39,7 @@ def _allocated_ambulance_ids(record: dict) -> list[str]:
             if not isinstance(resource, dict):
                 continue
             # Already taken away from this incident.
-            if resource.get("status") == "reallocated":
+            if resource.get("status") in {"reallocated", "released"}:
                 continue
             if resource.get("resource_type") == "ambulance":
                 resource_id = resource.get("resource_id")

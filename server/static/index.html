@@ -8,41 +8,42 @@
 </head>
 <body>
 
+<!-- Profile picker -->
+<div id="profileGate" class="gate hidden">
+  <div class="gate-box">
+    <div class="gate-title"><span class="pulse-dot"></span> Smart City Incident Response</div>
+    <p class="gate-sub">Choose how you're using the system</p>
+    <div class="gate-options">
+      <button class="gate-card" data-profile="citizen">
+        <div class="gate-icon">&#x1F64B;</div>
+        <div class="gate-name">Citizen</div>
+        <div class="gate-desc">Report an emergency by text or voice and follow the response to your reports.</div>
+      </button>
+      <button class="gate-card" data-profile="authority">
+        <div class="gate-icon">&#x1F3DB;&#xFE0F;</div>
+        <div class="gate-name">Disaster Management Authority</div>
+        <div class="gate-desc">Control room: monitor every incident, see the agent's decisions, allocate and release resources.</div>
+      </button>
+    </div>
+  </div>
+</div>
+
 <header class="topbar">
   <div class="topbar-title">
     <span class="pulse-dot"></span>
     Smart City Incident Response Agent
+    <span id="profileChip" class="profile-chip"></span>
   </div>
   <div class="topbar-actions">
     <span id="clock" class="clock"></span>
-    <button id="resetBtn" class="btn btn-ghost">Reset Demo</button>
+    <button id="switchProfileBtn" class="btn btn-ghost">Switch profile</button>
+    <button id="resetBtn" class="btn btn-ghost authority-only">Reset Demo</button>
   </div>
 </header>
 
 <main class="layout">
 
-  <!-- LEFT: Live incident queue -->
-  <section class="panel queue-panel">
-    <h2>Live Priority Queue <span id="queueCount" class="badge">0</span></h2>
-    <div id="queueList" class="queue-list"></div>
-  </section>
-
-  <!-- CENTER: City map -->
-  <section class="panel map-panel">
-    <h2>City Map</h2>
-    <svg id="cityMap" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet"></svg>
-    <div class="legend">
-      <span><i class="dot hospital"></i>Hospital</span>
-      <span><i class="dot dispensary"></i>Dispensary</span>
-      <span><i class="dot fire"></i>Fire Station</span>
-      <span><i class="dot factory"></i>Factory</span>
-      <span><i class="dot traffic"></i>Traffic Pt.</span>
-      <span><i class="dot incident sev5"></i>Incident (by severity)</span>
-      <span><i class="road blocked"></i>Blocked road</span>
-    </div>
-  </section>
-
-  <!-- RIGHT: Report form + analytics -->
+  <!-- LEFT: Report form (+ control-room analytics/resources) -->
   <aside class="panel side-panel">
 
     <div class="side-block">
@@ -58,7 +59,11 @@
         </select>
 
         <label>Description</label>
-        <textarea id="f_desc" rows="3" placeholder="What are you seeing?"></textarea>
+        <div class="voice-row">
+          <textarea id="f_desc" rows="3" placeholder="What are you seeing? Type or tap the mic to speak."></textarea>
+          <button type="button" id="micBtn" class="mic-btn" title="Report by voice" aria-label="Report by voice">&#x1F3A4;</button>
+        </div>
+        <div id="voiceStatus" class="voice-status"></div>
 
         <label>Location</label>
         <select id="f_location"></select>
@@ -70,21 +75,48 @@
           <select id="f_dest"></select>
         </div>
 
-        <label>Reporter confidence: <span id="f_confVal">0.9</span></label>
+        <label><span class="citizen-only">How sure are you?</span><span class="authority-only">Reporter confidence</span>: <span id="f_confVal">0.9</span></label>
         <input type="range" id="f_confidence" min="0" max="1" step="0.05" value="0.9" />
 
         <button type="submit" class="btn btn-primary">Submit Report</button>
       </form>
-      <p class="hint">Tip: set confidence below 0.3 to demo false-report detection.</p>
+      <div id="submitMsg" class="submit-msg"></div>
+      <p class="hint authority-only">Tip: set confidence below 0.3 to demo false-report detection.</p>
     </div>
 
-    <div class="side-block">
+    <div class="side-block authority-only">
       <h2>Analytics</h2>
       <div id="analytics" class="analytics-grid"></div>
       <div id="bottlenecks" class="bottleneck-list"></div>
     </div>
 
+    <div class="side-block authority-only">
+      <h2>Resources</h2>
+      <div id="resourceBoard" class="resource-board"></div>
+    </div>
+
   </aside>
+
+  <!-- CENTER: Incident cards -->
+  <section class="panel queue-panel">
+    <h2><span id="queueTitle">Live Priority Queue</span> <span id="queueCount" class="badge">0</span></h2>
+    <div id="queueList" class="queue-list"></div>
+  </section>
+
+  <!-- RIGHT: City map -->
+  <section class="panel map-panel">
+    <h2>City Map</h2>
+    <svg id="cityMap" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend">
+      <span><i class="dot hospital"></i>Hospital</span>
+      <span><i class="dot dispensary"></i>Dispensary</span>
+      <span><i class="dot fire"></i>Fire Station</span>
+      <span><i class="dot factory"></i>Factory</span>
+      <span><i class="dot traffic"></i>Traffic Pt.</span>
+      <span><i class="dot incident sev5"></i>Incident (by severity)</span>
+      <span><i class="road blocked"></i>Blocked road</span>
+    </div>
+  </section>
 </main>
 
 <!-- Incident detail modal -->

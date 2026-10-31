@@ -133,7 +133,7 @@ def _held_resources(record: dict) -> list[dict]:
     held = []
     for item in _result_items(record.get("result")):
         for res in item.get("resources_allocated", []) or []:
-            if not isinstance(res, dict) or res.get("status") == "reallocated":
+            if not isinstance(res, dict) or res.get("status") in {"reallocated", "released"}:
                 continue
             if res.get("resource_type") in NON_COMMITTED_TYPES:
                 continue
@@ -580,6 +580,11 @@ class IncidentIn(BaseModel):
     severity_inputs: dict = Field(default_factory=dict)
 
 
+class AssignIn(BaseModel):
+    resource_type: str  # ambulance | fire_tender
+    resource_id: str
+
+
 class UpdateIn(BaseModel):
     description: str
     confidence: Optional[float] = None
@@ -660,6 +665,97 @@ def send_update(incident_id: str, payload: UpdateIn):
         allow_cascade=incident.reporter != "system_cascade",
     )
     with STATE_LOCK:
+        return copy.deepcopy(record)
+
+
+def _control_room_step(record: dict, stage: str, title: str, detail: str = ""):
+    record.setdefault("timeline", []).append({
+        "timestamp": now(),
+        "stage": stage,
+        "title": title,
+        "detail": detail,
+    })
+    record["history"].append({
+        "timestamp": now(),
+        "event": stage.lower(),
+        "note": f"{title}. {detail}".strip(),
+        "result": record.get("result"),
+    })
+    record["updated_at"] = now()
+
+
+@app.post("/api/incidents/{incident_id}/assign")
+def assign_resource(incident_id: str, payload: AssignIn):
+    """Control-room override: manually commit an available unit to an incident."""
+    pool = UNIT_POOLS.get(payload.resource_type)
+    if not pool:
+        return {"error": f"Unsupported resource type '{payload.resource_type}'"}
+
+    with STATE_LOCK:
+        record = INCIDENTS.get(incident_id)
+        if not record:
+            return {"error": f"Unknown incident_id '{incident_id}'"}
+
+        unit = next((u for u in WORLD.get(pool, []) if u.get("id") == payload.resource_id), None)
+        if not unit or unit.get("status") != "available":
+            return {"error": f"{payload.resource_id} is not available"}
+
+        items = _result_items(record.get("result"))
+        if not items:
+            return {"error": "Incident has no result to attach the resource to"}
+        item = items[0]
+
+        unit["status"] = "dispatched"
+        item.setdefault("resources_allocated", []).append({
+            "resource_type": payload.resource_type,
+            "resource_id": unit["id"],
+            "eta": "manual dispatch",
+        })
+        item.setdefault("actions_taken", []).append({
+            "action": f"Control room manually dispatched {unit.get('name', unit['id'])}",
+            "timestamp": now(),
+        })
+        item.setdefault("reporter_updates", []).append(
+            f"{unit.get('name', unit['id'])} has been dispatched by the control room."
+        )
+        if item.get("status") in {"escalated", "unhandled", "false_report"}:
+            item["status"] = "resolved"
+
+        record["status"] = _overall_status(record["result"])
+        record["incident"]["status"] = record["status"]
+        _control_room_step(
+            record, "OVERRIDE",
+            f"Control room dispatched {unit['id']}",
+            unit.get("name", ""),
+        )
+        return copy.deepcopy(record)
+
+
+@app.post("/api/incidents/{incident_id}/close")
+def close_incident(incident_id: str):
+    """Control room marks the incident finished and returns its units to the pool."""
+    with STATE_LOCK:
+        record = INCIDENTS.get(incident_id)
+        if not record:
+            return {"error": f"Unknown incident_id '{incident_id}'"}
+
+        released = _release_resources(record)
+        for item in _result_items(record.get("result")):
+            for res in item.get("resources_allocated", []) or []:
+                if isinstance(res, dict) and res.get("status") != "reallocated":
+                    res["status"] = "released"
+            item["status"] = "closed"
+            item.setdefault("reporter_updates", []).append(
+                "The control room has closed this incident. Thank you for reporting."
+            )
+
+        record["status"] = "closed"
+        record["incident"]["status"] = "closed"
+        _control_room_step(
+            record, "CLOSE",
+            "Incident closed by control room",
+            f"Released: {', '.join(released)}" if released else "No units to release",
+        )
         return copy.deepcopy(record)
 
 

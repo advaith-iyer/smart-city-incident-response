@@ -2,6 +2,19 @@ const API = "";
 let WORLD = null;
 let BOUNDS = null;
 let SELECTED_INCIDENT = null;
+let PROFILE = null;  // "citizen" | "authority"
+
+function storageGet(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? fallback : JSON.parse(v);
+  } catch { return fallback; }
+}
+function storageSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ }
+}
+function myReports() { return storageGet("sc_my_reports", []); }
+function isAuthority() { return PROFILE === "authority"; }
 
 const SEV_COLORS = { 1: "#4caf50", 2: "#8bc34a", 3: "#ffc107", 4: "#ff7043", 5: "#e53935" };
 
@@ -151,6 +164,7 @@ function statusClass(status) {
   if (status.includes("reroute")) return "status-rerouted";
   if (status.includes("unhandled")) return "status-unhandled";
   if (status.includes("false_report")) return "status-false_report";
+  if (status.includes("closed")) return "status-closed";
   return "status-escalated";
 }
 
@@ -162,8 +176,17 @@ function summarizeResult(result) {
 
 function renderQueue(incidents) {
   const list = document.getElementById("queueList");
+  if (!isAuthority()) {
+    const mine = new Set(myReports());
+    incidents = incidents.filter(r => mine.has(r.incident.incident_id));
+  }
   document.getElementById("queueCount").textContent = incidents.length;
   list.innerHTML = "";
+  if (!incidents.length) {
+    list.innerHTML = `<div class="empty-state">${isAuthority()
+      ? "No active incidents."
+      : "You haven't reported anything yet. Use the form on the left - type or tap the mic."}</div>`;
+  }
   incidents.forEach(rec => {
     const sev = getSeverity(rec);
     const card = document.createElement("div");
@@ -212,6 +235,24 @@ function renderAnalytics(a) {
   }
 }
 
+function renderResourceBoard(world) {
+  const units = (label, list) => `<div class="rb-group">${label}</div>` + (list || []).map(u => {
+    const free = u.status === "available";
+    return `<div class="rb-row"><span>${escapeHtml(u.id)} · ${escapeHtml(u.name || "")}</span>
+      <span class="${free ? "rb-free" : "rb-busy"}">${escapeHtml(u.status || "")}</span></div>`;
+  }).join("");
+  const beds = (label, list) => `<div class="rb-group">${label}</div>` + (list || []).map(f => {
+    const left = f.available_capacity ?? (f.capacity - f.current_load);
+    return `<div class="rb-row"><span>${escapeHtml(f.id)} · ${escapeHtml(f.name || "")}</span>
+      <span class="${left > 0 ? "rb-free" : "rb-full"}">${left}/${f.capacity} free</span></div>`;
+  }).join("");
+  document.getElementById("resourceBoard").innerHTML =
+    units("Ambulances", world.ambulances) +
+    units("Fire tenders", world.fire_units) +
+    beds("Hospitals", world.hospitals) +
+    beds("Dispensaries", world.dispensaries);
+}
+
 // ---------------------------------------------------------------------------
 // Modal (incident detail + send update)
 // ---------------------------------------------------------------------------
@@ -247,7 +288,7 @@ async function openModal(rec) {
             </div>
           </div>
 
-          <div class="status-block">
+          <div class="status-block authority-only">
             <div class="detail-label">Escalation</div>
             <div class="detail-value">
               ${escapeHtml(it.escalation_level || "—")}
@@ -265,7 +306,7 @@ async function openModal(rec) {
             </div>
           </div>
 
-          <div class="modal-section">
+          <div class="modal-section authority-only">
             <div class="section-title">Actions Taken</div>
             <ul class="clean-list">
               ${actions || "<li>None</li>"}
@@ -273,14 +314,14 @@ async function openModal(rec) {
           </div>
 
           <div class="modal-section">
-            <div class="section-title">Resources Allocated</div>
+            <div class="section-title">${isAuthority() ? "Resources Allocated" : "Help on the way"}</div>
             <ul class="clean-list">
               ${resources || "<li>None</li>"}
             </ul>
           </div>
 
           <div class="modal-section">
-            <div class="section-title">Reporter Updates</div>
+            <div class="section-title">${isAuthority() ? "Reporter Updates" : "Updates for you"}</div>
             <ul class="clean-list">
               ${updates || "<li>None</li>"}
             </ul>
@@ -346,14 +387,16 @@ async function openModal(rec) {
 
     ${resultHtml}
 
-    <div class="modal-section">
+    ${isAuthority() ? controlActionsHtml(rec) : ""}
+
+    <div class="modal-section authority-only">
       <div class="section-title">Decision Timeline</div>
       <div class="decision-timeline">
         ${decisionTimeline || '<div class="empty-state">No decisions recorded.</div>'}
       </div>
     </div>
 
-    <div class="modal-section">
+    <div class="modal-section authority-only">
       <div class="section-title">Agent Decision Trace</div>
       <div id="agentTracePanel" class="agent-trace">
         <div class="empty-state">Loading agent trace...</div>
@@ -361,9 +404,11 @@ async function openModal(rec) {
     </div>
 
     <div class="update-box">
-      <div class="section-title">Monitor &amp; Adapt</div>
+      <div class="section-title">${isAuthority() ? "Monitor &amp; Adapt" : "Send an update"}</div>
       <p class="section-subtitle">
-        Report a change in conditions and trigger a new assessment.
+        ${isAuthority()
+          ? "Report a change in conditions and trigger a new assessment."
+          : "Has anything changed? Tell us and the response will be re-assessed."}
       </p>
 
       <textarea
@@ -375,13 +420,13 @@ async function openModal(rec) {
       <button id="sendUpdateBtn" class="btn btn-primary">
         Send Update
       </button>
-      ${isFalseReport ? `
+      ${isFalseReport && isAuthority() ? `
       <button id="verifyBtn" class="btn btn-ghost btn-verify">
         Verify report &amp; dispatch
       </button>` : ""}
     </div>
 
-    <div class="history-section">
+    <div class="history-section authority-only">
       <div class="section-title">Incident History</div>
       ${history || '<div class="empty-state">No history recorded.</div>'}
     </div>
@@ -410,6 +455,27 @@ async function openModal(rec) {
     refreshAll();
   });
 
+  const assignBtn = document.getElementById("assignBtn");
+  if (assignBtn) {
+    assignBtn.addEventListener("click", async () => {
+      const sel = document.getElementById("assignSelect");
+      if (!sel.value) return;
+      const [resource_type, resource_id] = sel.value.split("|");
+      const res = await postJSON(`/api/incidents/${SELECTED_INCIDENT}/assign`, { resource_type, resource_id });
+      if (res.error) { alert(res.error); return; }
+      closeModal();
+      refreshAll();
+    });
+  }
+  const closeIncBtn = document.getElementById("closeIncidentBtn");
+  if (closeIncBtn) {
+    closeIncBtn.addEventListener("click", async () => {
+      await postJSON(`/api/incidents/${SELECTED_INCIDENT}/close`, {});
+      closeModal();
+      refreshAll();
+    });
+  }
+
   const verifyBtn = document.getElementById("verifyBtn");
   if (verifyBtn) {
     verifyBtn.addEventListener("click", async () => {
@@ -425,6 +491,28 @@ async function openModal(rec) {
 
   overlay.classList.remove("hidden");
 }
+function controlActionsHtml(rec) {
+  const free = [
+    ...(WORLD?.ambulances || []).filter(u => u.status === "available").map(u => ["ambulance", u]),
+    ...(WORLD?.fire_units || []).filter(u => u.status === "available").map(u => ["fire_tender", u]),
+  ];
+  const options = free.map(([type, u]) =>
+    `<option value="${type}|${escapeHtml(u.id)}">${escapeHtml(u.id)} - ${escapeHtml(u.name || type)}</option>`
+  ).join("");
+  const closed = rec.status === "closed";
+  return `
+    <div class="modal-section">
+      <div class="section-title">Control Room Actions</div>
+      <div class="control-actions">
+        ${options
+          ? `<select id="assignSelect">${options}</select>
+             <button id="assignBtn" class="btn btn-primary">Dispatch unit</button>`
+          : `<span class="empty-state">No ambulances or fire tenders available.</span>`}
+        ${closed ? "" : `<button id="closeIncidentBtn" class="btn btn-ghost">Close incident &amp; release units</button>`}
+      </div>
+    </div>`;
+}
+
 function closeModal() {
   document.getElementById("modalOverlay").classList.add("hidden");
 }
@@ -501,15 +589,24 @@ document.getElementById("reportForm").addEventListener("submit", async e => {
     };
   }
 
-  await postJSON("/api/incidents", {
+  const created = await postJSON("/api/incidents", {
     incident_type: type,
     description: desc,
     lat: loc.lat,
     lng: loc.lng,
     area_name: loc.area_name,
+    reporter: isAuthority() ? "control_room" : "citizen",
     confidence,
     severity_inputs,
   });
+
+  const newId = created?.incident?.incident_id;
+  if (newId) {
+    storageSet("sc_my_reports", [...myReports(), newId]);
+    const msg = document.getElementById("submitMsg");
+    msg.textContent = `Report ${newId} received - status: ${(created.status || "processing").replace("_", " ")}.`;
+    setTimeout(() => { if (msg.textContent.includes(newId)) msg.textContent = ""; }, 6000);
+  }
 
   document.getElementById("f_desc").value = "";
   const roadSel = document.getElementById("f_road");
@@ -521,6 +618,7 @@ document.getElementById("reportForm").addEventListener("submit", async e => {
 
 document.getElementById("resetBtn").addEventListener("click", async () => {
   await postJSON("/api/reset", {});
+  storageSet("sc_my_reports", []);
   closeModal();
   SELECTED_INCIDENT = null;
   const world = await getJSON("/api/world");
@@ -543,9 +641,83 @@ async function refreshAll() {
   renderMap(world, incidents);
   renderQueue(incidents);
   renderAnalytics(analyticsData);
+  renderResourceBoard(world);
 }
 
+function setProfile(profile) {
+  PROFILE = profile;
+  storageSet("sc_profile", profile);
+  document.body.dataset.profile = profile;
+  document.getElementById("profileChip").textContent =
+    profile === "authority" ? "Disaster Management Authority" : "Citizen";
+  document.getElementById("queueTitle").textContent =
+    profile === "authority" ? "Live Priority Queue" : "My Reports";
+  document.getElementById("profileGate").classList.add("hidden");
+  closeModal();
+  if (WORLD) refreshAll();
+}
+function showProfileGate() {
+  document.getElementById("profileGate").classList.remove("hidden");
+}
+document.querySelectorAll(".gate-card").forEach(card =>
+  card.addEventListener("click", () => setProfile(card.dataset.profile))
+);
+document.getElementById("switchProfileBtn").addEventListener("click", showProfileGate);
+
+// Voice reporting via the browser's Web Speech API (Chrome / Edge).
+(function setupVoice() {
+  const micBtn = document.getElementById("micBtn");
+  const status = document.getElementById("voiceStatus");
+  const desc = document.getElementById("f_desc");
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    micBtn.disabled = true;
+    micBtn.title = "Voice input needs Chrome or Edge";
+    micBtn.style.opacity = 0.4;
+    return;
+  }
+  const rec = new SR();
+  rec.lang = "en-IN";
+  rec.interimResults = true;
+  rec.continuous = false;
+  let listening = false;
+  let base = "";
+
+  rec.onstart = () => {
+    listening = true;
+    micBtn.classList.add("listening");
+    status.textContent = "Listening... describe the emergency.";
+  };
+  rec.onresult = e => {
+    let text = "";
+    for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+    desc.value = (base ? base + " " : "") + text.trim();
+  };
+  rec.onerror = e => {
+    status.textContent = e.error === "not-allowed"
+      ? "Microphone permission denied."
+      : `Voice input error: ${e.error}`;
+  };
+  rec.onend = () => {
+    listening = false;
+    micBtn.classList.remove("listening");
+    if (!status.textContent.startsWith("Voice input error") && !status.textContent.startsWith("Microphone")) {
+      status.textContent = desc.value.trim() ? "Got it - check the text, then submit." : "";
+    }
+  };
+  micBtn.addEventListener("click", () => {
+    if (listening) { rec.stop(); return; }
+    base = desc.value.trim();
+    status.textContent = "";
+    try { rec.start(); } catch { /* already started */ }
+  });
+})();
+
 async function init() {
+  const saved = storageGet("sc_profile", null);
+  if (saved === "citizen" || saved === "authority") setProfile(saved);
+  else showProfileGate();
+
   const world = await getJSON("/api/world");
   WORLD = world;
   populateLocationOptions(world);
