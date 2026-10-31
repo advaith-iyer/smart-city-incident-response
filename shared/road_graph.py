@@ -97,8 +97,11 @@ def shortest_path(roads, start, end):
     for node in roads["nodes"]:
         graph[node["id"]] = []
 
+    if start not in graph or end not in graph:
+        return None
+
     for edge in roads["edges"]:
-        if not edge["blocked"]:
+        if not edge.get("blocked") and edge["from"] in graph and edge["to"] in graph:
             graph[edge["from"]].append(
                 (edge["to"], edge["distance_km"])
             )

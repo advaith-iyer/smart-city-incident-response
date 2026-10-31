@@ -449,3 +449,37 @@ body {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+/* ---- false report + decision timeline ---- */
+.status-false_report { background: #2e2a3a; color: #c9b6ff; }
+
+.btn-verify { margin-top: 8px; }
+
+.decision-timeline {
+  position: relative;
+  margin: 10px 0 0 6px;
+  padding-left: 18px;
+  border-left: 2px solid var(--border);
+}
+.dt-item { position: relative; margin: 0 0 12px; }
+.dt-item::before {
+  content: "";
+  position: absolute;
+  left: -24px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dt-color, var(--accent));
+  border: 2px solid var(--panel);
+}
+.dt-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.dt-stage {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--dt-color, var(--accent));
+}
+.dt-title { font-size: 0.8rem; font-weight: 600; color: var(--text); }
+.dt-time { font-size: 0.68rem; color: var(--muted); margin-left: auto; }
+.dt-detail { font-size: 0.74rem; color: var(--muted); line-height: 1.4; margin-top: 2px; }

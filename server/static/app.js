@@ -150,6 +150,7 @@ function statusClass(status) {
   if (status.includes("resolved")) return "status-resolved";
   if (status.includes("reroute")) return "status-rerouted";
   if (status.includes("unhandled")) return "status-unhandled";
+  if (status.includes("false_report")) return "status-false_report";
   return "status-escalated";
 }
 
@@ -168,11 +169,11 @@ function renderQueue(incidents) {
     const card = document.createElement("div");
     card.className = "incident-card";
     card.style.borderLeftColor = SEV_COLORS[sev] || "#ffc107";
-    const status = summarizeResult(rec.result);
+    const status = rec.status || summarizeResult(rec.result);
     card.innerHTML = `
       <div class="row1">
         <span>${rec.incident.incident_id} · ${rec.incident.incident_type}</span>
-        <span class="status-pill ${statusClass(status)}">${status}</span>
+        <span class="status-pill ${statusClass(status)}">${escapeHtml(status.replace("_", " "))}</span>
       </div>
       <div class="desc">${escapeHtml(rec.incident.description)}</div>
       <div class="row2">
@@ -289,6 +290,24 @@ async function openModal(rec) {
 `;
   }).join("");
 
+  const STAGE_COLORS = {
+    RECEIVE: "#4f8cff", CLASSIFY: "#4f8cff", VERIFY: "#9aa7c7", ROUTE: "#7e8cff",
+    ASSESS: "#ffc107", DISPATCH: "#6fd68f", REALLOCATE: "#ff7043", CASCADE: "#c9b6ff",
+    BOTTLENECK: "#ff8a8a", MONITOR: "#6fc4d6", RELEASE: "#6fc4d6", STATUS: "#e7ecf7",
+  };
+  const decisionTimeline = (rec.timeline || []).map(t => `
+    <div class="dt-item" style="--dt-color:${STAGE_COLORS[t.stage] || "#4f8cff"}">
+      <div class="dt-head">
+        <span class="dt-stage">${escapeHtml(t.stage)}</span>
+        <span class="dt-title">${escapeHtml(t.title)}</span>
+        <span class="dt-time">${new Date(t.timestamp).toLocaleTimeString()}</span>
+      </div>
+      ${t.detail ? `<div class="dt-detail">${escapeHtml(t.detail)}</div>` : ""}
+    </div>
+  `).join("");
+
+  const isFalseReport = rec.status === "false_report";
+
   const history = (rec.history || []).slice().reverse().map(h => `
     <div class="timeline-item"><span class="t-event">${escapeHtml(h.event)}</span> — ${new Date(h.timestamp).toLocaleTimeString()}${h.note ? " · " + escapeHtml(h.note) : ""}</div>
   `).join("");
@@ -328,6 +347,13 @@ async function openModal(rec) {
     ${resultHtml}
 
     <div class="modal-section">
+      <div class="section-title">Decision Timeline</div>
+      <div class="decision-timeline">
+        ${decisionTimeline || '<div class="empty-state">No decisions recorded.</div>'}
+      </div>
+    </div>
+
+    <div class="modal-section">
       <div class="section-title">Agent Decision Trace</div>
       <div id="agentTracePanel" class="agent-trace">
         <div class="empty-state">Loading agent trace...</div>
@@ -349,6 +375,10 @@ async function openModal(rec) {
       <button id="sendUpdateBtn" class="btn btn-primary">
         Send Update
       </button>
+      ${isFalseReport ? `
+      <button id="verifyBtn" class="btn btn-ghost btn-verify">
+        Verify report &amp; dispatch
+      </button>` : ""}
     </div>
 
     <div class="history-section">
@@ -380,6 +410,19 @@ async function openModal(rec) {
     refreshAll();
   });
 
+  const verifyBtn = document.getElementById("verifyBtn");
+  if (verifyBtn) {
+    verifyBtn.addEventListener("click", async () => {
+      const text = document.getElementById("updateText").value.trim();
+      await postJSON(`/api/incidents/${SELECTED_INCIDENT}/update`, {
+        description: text || rec.incident.description,
+        confidence: 0.9,
+      });
+      closeModal();
+      refreshAll();
+    });
+  }
+
   overlay.classList.remove("hidden");
 }
 function closeModal() {
@@ -410,7 +453,7 @@ function populateRoadOptions(world) {
   destSel.innerHTML = "";
   (world.roads?.edges || []).forEach(e => {
     const opt = document.createElement("option");
-    opt.value = JSON.stringify({ road_id: e.id, start_junction: e.from });
+    opt.value = JSON.stringify({ road_id: e.id, start_junction: e.from, end_junction: e.to });
     opt.textContent = `${e.id}: ${e.from} → ${e.to}${e.blocked ? " (already blocked)" : ""}`;
     roadSel.appendChild(opt);
   });
@@ -420,7 +463,15 @@ function populateRoadOptions(world) {
     opt.textContent = `${n.name} (${n.id})`;
     destSel.appendChild(opt);
   });
+  syncDestToRoad();
 }
+
+function syncDestToRoad() {
+  const roadSel = document.getElementById("f_road");
+  if (!roadSel.value) return;
+  document.getElementById("f_dest").value = JSON.parse(roadSel.value).end_junction;
+}
+document.getElementById("f_road").addEventListener("change", syncDestToRoad);
 
 document.getElementById("f_type").addEventListener("change", e => {
   document.getElementById("f_trafficFields").classList.toggle("hidden", e.target.value !== "road_blockage");
@@ -461,11 +512,20 @@ document.getElementById("reportForm").addEventListener("submit", async e => {
   });
 
   document.getElementById("f_desc").value = "";
+  const roadSel = document.getElementById("f_road");
+  const selectedRoad = roadSel.value;
+  populateRoadOptions(await getJSON("/api/world"));
+  if (selectedRoad) { roadSel.value = selectedRoad; syncDestToRoad(); }
   refreshAll();
 });
 
 document.getElementById("resetBtn").addEventListener("click", async () => {
   await postJSON("/api/reset", {});
+  closeModal();
+  SELECTED_INCIDENT = null;
+  const world = await getJSON("/api/world");
+  populateLocationOptions(world);
+  populateRoadOptions(world);
   refreshAll();
 });
 

@@ -35,14 +35,7 @@ def dispatch_to_module(incident: Incident, world: dict):
 
     primary_module = route_incident(incident)
     if is_false_report(incident):
-        return {
-            "incident_id": incident.incident_id,
-            "status": "unhandled",
-            "message": (
-                f"Incident confidence too low "
-                f"({incident.confidence:.2f}); response not dispatched."
-            ),
-        }
+        return create_false_report_response(incident)
 
     modules = []
 
@@ -103,12 +96,52 @@ def create_unhandled_response(incident: Incident) -> dict:
         ),
     }
 
+def create_false_report_response(incident: Incident) -> dict:
+    """
+    Low-confidence reports are held for verification instead of being
+    dispatched, so a likely-false report never ties up real resources.
+    """
+
+    message = (
+        f"Reporter confidence too low ({incident.confidence:.2f} < "
+        f"{FALSE_REPORT_THRESHOLD}); no resources dispatched. "
+        f"Held for verification."
+    )
+    return {
+        "incident_id": incident.incident_id,
+        "status": "false_report",
+        "severity": {"score": 0, "level": "unverified", "reasoning": message},
+        "actions_taken": [
+            {"action": "Flagged as possible false report", "timestamp": None},
+            {"action": "Dispatch withheld pending verification", "timestamp": None},
+        ],
+        "resources_allocated": [],
+        "escalation_level": "verification_required",
+        "reporter_updates": [
+            "Thanks for your report. We could not verify it yet - please "
+            "send an update with more detail so we can dispatch help."
+        ],
+        "message": message,
+        "log": {
+            "incident_id": incident.incident_id,
+            "response_time_sec": 0.0,
+            "final_severity": 0,
+            "escalation_level": "verification_required",
+            "resources_used": 0,
+            "bottlenecks": ["None"],
+        },
+    }
+
+
+FALSE_REPORT_THRESHOLD = 0.3
+
+
 def is_false_report(incident: Incident) -> bool:
     """
     Detect incidents with very low reporter confidence.
     """
 
-    return incident.confidence < 0.3
+    return incident.confidence < FALSE_REPORT_THRESHOLD
 
 
 def priority_score(incident: Incident) -> int:
@@ -226,7 +259,7 @@ def run_response(incidents: list[Incident], world: dict) -> dict:
             continue
 
         if isinstance(result, dict) and result.get("incident_id") in original_ids:
-            if result.get("status") == "unhandled":
+            if result.get("status") in {"unhandled", "false_report"}:
                 unhandled += 1
             else:
                 handled += 1

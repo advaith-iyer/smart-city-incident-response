@@ -436,10 +436,9 @@ def flag_dangerous_area(
 
     location = incident.get("location", {})
 
-    area_name = location.get(
-        "area_name",
+    area_name = location.get("area_name") or (
         f"Area near {location.get('lat', 'unknown')}, "
-        f"{location.get('lng', 'unknown')}",
+        f"{location.get('lng', 'unknown')}"
     )
 
     history = world.setdefault(
@@ -1102,22 +1101,20 @@ def handle_incident(
     # canonical ModuleOutput format.
     # --------------------------------------------------------
 
+    # Keep the shared {action, timestamp} / {resource_type, resource_id, eta}
+    # dict shapes used by the other 3 modules (reallocation and analytics
+    # read resources_allocated as dicts).
     clean_actions = [
-        action["action"]
+        action
         if isinstance(action, dict)
-        else action
+        else {"action": action, "timestamp": None}
         for action in actions_taken
     ]
 
     clean_resources = [
-        (
-            f"{resource['resource_type']} "
-            f"({resource['resource_id']}, "
-            f"ETA {resource['eta']})"
-        )
-        if isinstance(resource, dict)
-        else resource
+        resource
         for resource in resources_allocated
+        if isinstance(resource, dict)
     ]
 
     return ModuleOutput(

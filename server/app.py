@@ -23,6 +23,7 @@ import asyncio
 import copy
 import json
 import sys
+import threading
 import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -41,9 +42,12 @@ sys.path.insert(0, str(BASE_DIR))
 from shared.contracts import Incident, ModuleOutput  # noqa: E402
 from shared.world_state import load_world  # noqa: E402
 from orchestrator.orchestrator import (  # noqa: E402
+    FALSE_REPORT_THRESHOLD,
+    MULTI_MODULE_RULES,
     dispatch_to_module,
     priority_score,
     is_false_report,
+    route_incident,
     serialize_result,
 )
 from orchestrator.cascade import generate_cascades
@@ -52,6 +56,7 @@ from orchestrator.reallocation import (
     release_ambulance,
 )
 from agent.decision_engine import DecisionEngine
+from agent.trace import AgentTrace
 
 # ---------------------------------------------------------------------------
 # App + shared mutable state
@@ -68,6 +73,10 @@ app.add_middleware(
 WORLD = load_world()          # single shared, mutable "world" every module reads/writes
 INCIDENTS: dict[str, dict] = {}  # incident_id -> record
 AGENT_TRACES: dict[str, list[dict]] = {}  # incident_id -> agent trace
+
+# Sync endpoints run in a threadpool while the monitoring loop runs in its own
+# thread, so every read/write of WORLD/INCIDENTS goes through this lock.
+STATE_LOCK = threading.RLock()
 
 
 def now():
@@ -97,37 +106,136 @@ def _extract_logs(serialized):
     return logs
 
 
-def _run_and_record(
-    incident: Incident,
-    event: str,
-    note: str = "",
-    allow_cascade: bool = True,
-):
-    result = dispatch_to_module(incident, WORLD)
+# ---------------------------------------------------------------------------
+# Resource ledger
+# ---------------------------------------------------------------------------
+# Modules mark units "dispatched" / bump facility load every time they run.
+# Before an existing incident is re-run (follow-up update, monitoring
+# re-check) we hand back whatever it currently holds, so the module
+# re-plans against true availability instead of double-booking.
 
-    if result is None:
-        result = {
-            "incident_id": incident.incident_id,
-            "status": "unhandled",
-            "message": (
-                f"No response module is registered for "
-                f"'{incident.incident_type}'."
-            ),
-        }
+UNIT_POOLS = {"ambulance": "ambulances", "fire_tender": "fire_units"}
+FACILITY_POOLS = {"hospital": "hospitals", "dispensary": "dispensaries"}
+# Listed in resources_allocated but never actually reserved in the world.
+NON_COMMITTED_TYPES = {
+    "safety_officer_standby",
+    "district_authority",
+    "traffic_control_point",
+}
 
-    serialized = _serialize(result)
 
-    # Feed the module's computed severity into the agent trace.
-    agent_severity = 0
+def _result_items(serialized) -> list[dict]:
     items = serialized if isinstance(serialized, list) else [serialized]
-    for item in items:
-        if isinstance(item, dict):
-            severity_data = item.get("severity", {})
-            if isinstance(severity_data, dict):
-                score = severity_data.get("score", 0)
-                if isinstance(score, (int, float)):
-                    agent_severity = max(agent_severity, score)
+    return [item for item in items if isinstance(item, dict)]
 
+
+def _held_resources(record: dict) -> list[dict]:
+    held = []
+    for item in _result_items(record.get("result")):
+        for res in item.get("resources_allocated", []) or []:
+            if not isinstance(res, dict) or res.get("status") == "reallocated":
+                continue
+            if res.get("resource_type") in NON_COMMITTED_TYPES:
+                continue
+            if res.get("resource_id"):
+                held.append(res)
+    return held
+
+
+def _find_factory_person(person_id: str):
+    for factory in WORLD.get("factories", []):
+        for person in factory.get("safety_team", []):
+            if person.get("id") == person_id:
+                return person
+    return None
+
+
+def _release_resources(record: dict) -> list[str]:
+    released = []
+    for res in _held_resources(record):
+        rtype, rid = res["resource_type"], res["resource_id"]
+
+        if rtype in UNIT_POOLS:
+            unit = next((u for u in WORLD.get(UNIT_POOLS[rtype], []) if u.get("id") == rid), None)
+            if unit and unit.get("status") == "dispatched":
+                unit["status"] = "available"
+                released.append(rid)
+
+        elif rtype in FACILITY_POOLS:
+            fac = next((f for f in WORLD.get(FACILITY_POOLS[rtype], []) if f.get("id") == rid), None)
+            if fac:
+                if "current_load" in fac:
+                    fac["current_load"] = max(0, fac["current_load"] - 1)
+                if "available_capacity" in fac:
+                    cap = fac.get("capacity", fac["available_capacity"] + 1)
+                    fac["available_capacity"] = min(cap, fac["available_capacity"] + 1)
+                released.append(f"{rid} bed")
+
+        else:
+            person = _find_factory_person(rid)
+            if person and person.get("status") == "dispatched":
+                person["status"] = "available"
+                released.append(rid)
+    return released
+
+
+# ---------------------------------------------------------------------------
+# Status + timeline helpers
+# ---------------------------------------------------------------------------
+
+def _overall_status(serialized) -> str:
+    """One canonical status per incident, derived from all module results."""
+    statuses = [item.get("status") or "unhandled" for item in _result_items(serialized)]
+    if not statuses:
+        return "unhandled"
+    if all(s == "false_report" for s in statuses):
+        return "false_report"
+    if all(s == "unhandled" for s in statuses):
+        return "unhandled"
+    for s in ("escalated", "rerouted", "redirected"):
+        if s in statuses:
+            return s
+    if all(s == "resolved" for s in statuses if s != "unhandled"):
+        return "resolved"
+    return statuses[0]
+
+
+def _modules_for(incident: Incident) -> list[str]:
+    modules = []
+    primary = route_incident(incident)
+    if primary:
+        modules.append(primary)
+    for flag, module_name in MULTI_MODULE_RULES.items():
+        if incident.severity_inputs.get(flag) and module_name not in modules:
+            modules.append(module_name)
+    return modules
+
+
+def _resource_label(res: dict) -> str:
+    eta = res.get("eta")
+    return f"{res.get('resource_type')} {res.get('resource_id')}" + (
+        f" (ETA {eta})" if eta and eta not in {"n/a", "on-site"} else ""
+    )
+
+
+def _false_report_trace(incident: Incident) -> list[dict]:
+    trace = AgentTrace()
+    trace.add("OBSERVE", "Incident received", {"incident_type": incident.incident_type})
+    trace.add(
+        "GUARDRAIL",
+        "Dispatch blocked: reporter confidence below threshold",
+        {"confidence": incident.confidence, "threshold": FALSE_REPORT_THRESHOLD},
+    )
+    trace.add(
+        "ADAPT",
+        "Holding report for verification instead of dispatching",
+        {"next_step": "await follow-up or verification"},
+    )
+    trace.add("EVALUATE", "No resources committed", {"status": "false_report"})
+    return list(trace.get_events())
+
+
+def _run_agent(incident: Incident, severity: float) -> list[dict]:
     agent = DecisionEngine(type("WorldAdapter", (), {
         "get_state": lambda self: {
             "resources": {
@@ -145,47 +253,152 @@ def _run_and_record(
 
     agent_result = agent.decide({
         "type": incident.incident_type,
-        "severity": agent_severity,
+        "severity": severity,
         "location": incident.location,
     })
+    return list(agent_result["trace"])
 
-    AGENT_TRACES[incident.incident_id] = agent_result["trace"]
 
-    record = INCIDENTS.setdefault(
-        incident.incident_id,
-        {
-            "created_at": now(),
-            "history": [],
-        },
+def _run_and_record(
+    incident: Incident,
+    event: str,
+    note: str = "",
+    allow_cascade: bool = True,
+):
+    with STATE_LOCK:
+        return _run_and_record_locked(incident, event, note, allow_cascade)
+
+
+def _run_and_record_locked(
+    incident: Incident,
+    event: str,
+    note: str,
+    allow_cascade: bool,
+):
+    existing = INCIDENTS.get(incident.incident_id)
+    previous_status = existing.get("status") if existing else None
+    previous_held = (
+        sorted(r["resource_id"] for r in _held_resources(existing)) if existing else []
     )
+
+    timeline: list[dict] = []
+
+    def step(stage: str, title: str, detail: str = ""):
+        timeline.append({
+            "timestamp": now(),
+            "stage": stage,
+            "title": title,
+            "detail": detail,
+        })
+
+    if existing:
+        released = _release_resources(existing)
+        step(
+            "MONITOR",
+            "Re-assessment triggered" if event != "auto_recheck" else "Monitoring re-check",
+            note,
+        )
+        if released:
+            step("RELEASE", "Returned resources to pool for re-planning", ", ".join(released))
+    else:
+        source = incident.severity_inputs.get("cascade_source")
+        step(
+            "RECEIVE",
+            f"{incident.incident_type.replace('_', ' ').title()} report received",
+            f"Cascade from {source}" if source else (incident.reporter or ""),
+        )
+        if note and event == "reported":
+            step("CLASSIFY", "Incident type classified", note)
+
+    false_report = is_false_report(incident)
+    step(
+        "VERIFY",
+        "Low confidence: dispatch withheld" if false_report else "Report confidence accepted",
+        f"confidence {incident.confidence:.2f} (threshold {FALSE_REPORT_THRESHOLD})",
+    )
+
+    if not false_report:
+        modules = _modules_for(incident)
+        step(
+            "ROUTE",
+            f"Routed to {' + '.join(m.title() for m in modules)} module"
+            if modules else "No module registered for this type",
+            f"priority score {priority_score(incident)}",
+        )
+
+    result = dispatch_to_module(incident, WORLD)
+
+    if result is None:
+        result = {
+            "incident_id": incident.incident_id,
+            "status": "unhandled",
+            "message": (
+                f"No response module is registered for "
+                f"'{incident.incident_type}'."
+            ),
+        }
+
+    serialized = _serialize(result)
+
+    # Feed the module's computed severity into the agent trace.
+    agent_severity = 0
+    for item in _result_items(serialized):
+        severity_data = item.get("severity", {})
+        if isinstance(severity_data, dict):
+            score = severity_data.get("score", 0)
+            if isinstance(score, (int, float)):
+                agent_severity = max(agent_severity, score)
+
+    if not false_report:
+        for item in _result_items(serialized):
+            sev = item.get("severity")
+            if isinstance(sev, dict) and sev.get("score") is not None:
+                step(
+                    "ASSESS",
+                    f"Severity assessed {sev.get('score')}/5",
+                    str(sev.get("reasoning") or sev.get("level") or ""),
+                )
+            committed = [
+                r for r in item.get("resources_allocated", []) or []
+                if isinstance(r, dict)
+            ]
+            if committed:
+                step("DISPATCH", "Resources allocated", "; ".join(_resource_label(r) for r in committed))
+            elif item.get("status") != "unhandled":
+                step("BOTTLENECK", "No resources available", item.get("escalation_level") or "")
+
+    AGENT_TRACES[incident.incident_id] = (
+        _false_report_trace(incident) if false_report
+        else _run_agent(incident, agent_severity)
+    )
+
+    record = existing or {
+        "created_at": now(),
+        "history": [],
+        "timeline": [],
+        "cascades": [],
+    }
+    record.setdefault("timeline", [])
+    record.setdefault("cascades", [])
 
     record["incident"] = _incident_public(incident)
     record["result"] = serialized
-    record["priority_score"] = priority_score(incident)
+    record["priority_score"] = 0 if false_report else priority_score(incident)
     record["updated_at"] = now()
-    record["history"].append({
-        "timestamp": now(),
-        "event": event,
-        "note": note,
-        "result": serialized,
-    })
 
     INCIDENTS[incident.incident_id] = record
 
-        # ------------------------------------------------------------
+    # ------------------------------------------------------------
     # Resource reallocation
     # ------------------------------------------------------------
     # If a critical medical incident could not get an ambulance,
     # search for an ambulance assigned to a lower-severity incident.
-    if incident.incident_type == "medical":
-        items = serialized if isinstance(serialized, list) else [serialized]
-
+    if incident.incident_type == "medical" and not false_report:
         medical_item = next(
             (
                 item
-                for item in items
-                if isinstance(item, dict)
-                and isinstance(item.get("severity"), dict)
+                for item in _result_items(serialized)
+                if isinstance(item.get("severity"), dict)
             ),
             None,
         )
@@ -194,7 +407,8 @@ def _run_and_record(
             severity_score = medical_item["severity"].get("score", 0)
 
             has_ambulance = any(
-                resource.get("resource_type") == "ambulance"
+                isinstance(resource, dict)
+                and resource.get("resource_type") == "ambulance"
                 for resource in medical_item.get(
                     "resources_allocated",
                     [],
@@ -206,7 +420,7 @@ def _run_and_record(
                     _incident_public(incident),
                     INCIDENTS,
                     int(severity_score),
-                    priority_score(incident),
+                    record["priority_score"],
                 )
 
                 if candidate:
@@ -273,53 +487,80 @@ def _run_and_record(
                                 candidate["incident_id"]
                             )
 
-                        record["result"] = serialized
-                        record["updated_at"] = now()
-
-                        record["history"].append(
-                            {
-                                "timestamp": now(),
-                                "event": "resource_reallocated",
-                                "note": (
-                                    f"Ambulance {ambulance_id} moved from "
-                                    f"{candidate['incident_id']} to "
-                                    f"{incident.incident_id}."
-                                ),
-                                "result": serialized,
-                            }
+                        step(
+                            "REALLOCATE",
+                            f"Ambulance {ambulance_id} reallocated",
+                            f"Taken from lower-priority {candidate['incident_id']} "
+                            f"(severity {candidate['severity']})",
                         )
 
-                        INCIDENTS[incident.incident_id] = record
+                        # The donor incident lost its ambulance and is open again.
+                        donor = candidate["record"]
+                        donor["status"] = _overall_status(donor.get("result"))
+                        donor["incident"]["status"] = donor["status"]
+                        donor["updated_at"] = now()
+                        donor.setdefault("timeline", []).append({
+                            "timestamp": now(),
+                            "stage": "REALLOCATE",
+                            "title": f"Ambulance {ambulance_id} reassigned away",
+                            "detail": (
+                                f"Moved to higher-priority {incident.incident_id}; "
+                                f"monitoring will re-dispatch when a unit frees up"
+                            ),
+                        })
+                        donor["history"].append({
+                            "timestamp": now(),
+                            "event": "resource_reallocated",
+                            "note": f"Ambulance {ambulance_id} moved to {incident.incident_id}.",
+                            "result": donor.get("result"),
+                        })
 
-    # Generate and record downstream incidents only for the
-    # original incident. This prevents cascade -> cascade loops.
-    if allow_cascade:
-        cascades = generate_cascades(
-            incident,
-            result,
-            WORLD,
-        )
+    status = _overall_status(serialized)
+    record["status"] = status
+    record["incident"]["status"] = status
+    step("STATUS", f"Status: {status.replace('_', ' ')}", "")
 
-        cascade_records = []
-
-        for cascade in cascades:
-            cascade_record = _run_and_record(
+    # Generate downstream incidents. Each cascade id is created only once,
+    # so follow-up updates and monitoring re-checks never duplicate them.
+    new_cascades = []
+    if allow_cascade and not false_report:
+        for cascade in generate_cascades(incident, result, WORLD):
+            if cascade.incident_id in INCIDENTS:
+                continue
+            _run_and_record_locked(
                 cascade,
                 event="cascade_generated",
                 note=f"Generated from {incident.incident_id}",
                 allow_cascade=False,
             )
-            cascade_records.append(cascade_record)
+            new_cascades.append(cascade)
+            record["cascades"].append({
+                "incident_id": cascade.incident_id,
+                "incident_type": cascade.incident_type,
+            })
+        if new_cascades:
+            step(
+                "CASCADE",
+                f"Spawned {len(new_cascades)} downstream incident(s)",
+                ", ".join(c.incident_id for c in new_cascades),
+            )
 
-        record["cascades"] = [
-            {
-                "incident_id": c["incident"]["incident_id"],
-                "incident_type": c["incident"]["incident_type"],
-            }
-            for c in cascade_records
-        ]
-
-        INCIDENTS[incident.incident_id] = record
+    # Periodic re-checks that change nothing are not worth a timeline entry.
+    current_held = sorted(r["resource_id"] for r in _held_resources(record))
+    unchanged = (
+        event == "auto_recheck"
+        and status == previous_status
+        and current_held == previous_held
+        and not new_cascades
+    )
+    if not unchanged:
+        record["timeline"].extend(timeline)
+        record["history"].append({
+            "timestamp": now(),
+            "event": event,
+            "note": note,
+            "result": serialized,
+        })
 
     return record
 
@@ -385,7 +626,8 @@ def create_incident(payload: IncidentIn):
         confidence=payload.confidence,
     )
     record = _run_and_record(incident, event="reported", note=classification_note)
-    return record
+    with STATE_LOCK:
+        return copy.deepcopy(record)
 
 
 @app.post("/api/incidents/{incident_id}/update")
@@ -397,10 +639,10 @@ def send_update(incident_id: str, payload: UpdateIn):
     scripted flag -- whatever severity_inputs/description change, the
     module re-assesses and may issue a different plan.
     """
-    if incident_id not in INCIDENTS:
-        return {"error": f"Unknown incident_id '{incident_id}'"}
-
-    prior = INCIDENTS[incident_id]["incident"]
+    with STATE_LOCK:
+        if incident_id not in INCIDENTS:
+            return {"error": f"Unknown incident_id '{incident_id}'"}
+        prior = copy.deepcopy(INCIDENTS[incident_id]["incident"])
     incident = Incident(
         incident_id=incident_id,
         incident_type=prior["incident_type"],
@@ -411,33 +653,42 @@ def send_update(incident_id: str, payload: UpdateIn):
         timestamp=now(),
         confidence=payload.confidence if payload.confidence is not None else prior.get("confidence", 0.9),
     )
-    record = _run_and_record(incident, event="update_received", note=payload.description)
-    return record
+    record = _run_and_record(
+        incident,
+        event="update_received",
+        note=payload.description,
+        allow_cascade=incident.reporter != "system_cascade",
+    )
+    with STATE_LOCK:
+        return copy.deepcopy(record)
 
 
 @app.get("/api/incidents")
 def list_incidents():
-    records = list(INCIDENTS.values())
+    with STATE_LOCK:
+        records = copy.deepcopy(list(INCIDENTS.values()))
     records.sort(key=lambda r: r.get("priority_score", 0), reverse=True)
     return records
 
 
 @app.get("/api/incidents/{incident_id}")
 def get_incident(incident_id: str):
-    return INCIDENTS.get(incident_id, {"error": "not found"})
+    with STATE_LOCK:
+        return copy.deepcopy(INCIDENTS.get(incident_id, {"error": "not found"}))
 
 
 @app.get("/api/incidents/{incident_id}/agent-trace")
 def get_agent_trace(incident_id: str):
     return {
         "incident_id": incident_id,
-        "trace": AGENT_TRACES.get(incident_id, []),
+        "trace": copy.deepcopy(AGENT_TRACES.get(incident_id, [])),
     }
 
 
 @app.get("/api/world")
 def get_world():
-    return WORLD
+    with STATE_LOCK:
+        return copy.deepcopy(WORLD)
 
 
 @app.get("/api/analytics")
@@ -456,12 +707,19 @@ def analytics():
     resources_used_total = 0
     bottlenecks = []
 
-    for rec in INCIDENTS.values():
+    false_reports = 0
+
+    with STATE_LOCK:
+        records = copy.deepcopy(list(INCIDENTS.values()))
+
+    for rec in records:
+        if rec.get("status") == "false_report":
+            false_reports += 1
         result = rec.get("result")
         items = result if isinstance(result, list) else [result]
         rec_handled = False
         for item in items:
-            if isinstance(item, dict) and item.get("status") == "unhandled":
+            if isinstance(item, dict) and item.get("status") in {"unhandled", "false_report"}:
                 continue
             rec_handled = True
 
@@ -486,6 +744,7 @@ def analytics():
         "total_incidents": total,
         "handled": handled,
         "unhandled": unhandled,
+        "false_reports": false_reports,
         "avg_response_time_sec": avg_response_time,
         "resources_used_total": resources_used_total,
         "bottlenecks": bottlenecks,
@@ -495,10 +754,12 @@ def analytics():
 @app.post("/api/reset")
 def reset_world():
     """Reset the in-memory world + incident store back to the seed city_state.json. Useful between demo takes."""
-    global WORLD
-    WORLD = load_world()
-    INCIDENTS.clear()
-    AGENT_TRACES.clear()
+    with STATE_LOCK:
+        # Reset in place so every holder of the WORLD reference sees it.
+        WORLD.clear()
+        WORLD.update(load_world())
+        INCIDENTS.clear()
+        AGENT_TRACES.clear()
     return {"status": "reset"}
 
 
@@ -511,17 +772,10 @@ def reset_world():
 # ETA). This is what makes "continuously monitored" a running behavior of
 # the system rather than a one-shot pipeline.
 
-async def monitoring_loop():
-    while True:
-        await asyncio.sleep(5)
+def recheck_open_incidents():
+    with STATE_LOCK:
         for incident_id, rec in list(INCIDENTS.items()):
-            result = rec.get("result")
-            items = result if isinstance(result, list) else [result]
-            still_open = any(
-                isinstance(item, dict) and item.get("status") == "escalated"
-                for item in items
-            )
-            if not still_open:
+            if rec.get("status") != "escalated":
                 continue
             prior = rec["incident"]
             incident = Incident(
@@ -534,8 +788,21 @@ async def monitoring_loop():
                 timestamp=now(),
                 confidence=prior.get("confidence", 0.9),
             )
-            _run_and_record(incident, event="auto_recheck",
-                             note="Periodic monitoring re-check (resource/road availability may have changed).")
+            _run_and_record(
+                incident,
+                event="auto_recheck",
+                note="Periodic monitoring re-check (resource/road availability may have changed).",
+                allow_cascade=prior.get("reporter") != "system_cascade",
+            )
+
+
+async def monitoring_loop():
+    while True:
+        await asyncio.sleep(5)
+        try:
+            await asyncio.to_thread(recheck_open_incidents)
+        except Exception as exc:  # keep monitoring alive for the demo
+            print(f"monitoring re-check failed: {exc!r}")
 
 
 @app.on_event("startup")

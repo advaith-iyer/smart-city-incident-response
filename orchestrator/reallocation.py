@@ -36,6 +36,11 @@ def _allocated_ambulance_ids(record: dict) -> list[str]:
 
     for item in _result_items(record):
         for resource in item.get("resources_allocated", []) or []:
+            if not isinstance(resource, dict):
+                continue
+            # Already taken away from this incident.
+            if resource.get("status") == "reallocated":
+                continue
             if resource.get("resource_type") == "ambulance":
                 resource_id = resource.get("resource_id")
 
@@ -147,13 +152,21 @@ def release_ambulance(
     for item in _result_items(record):
 
         resources = item.get("resources_allocated", []) or []
+        held_here = False
 
         for resource in resources:
             if (
-                resource.get("resource_type") == "ambulance"
+                isinstance(resource, dict)
+                and resource.get("resource_type") == "ambulance"
                 and resource.get("resource_id") == ambulance_id
+                and resource.get("status") != "reallocated"
             ):
                 resource["status"] = "reallocated"
+                held_here = True
+
+        # Only the module result that actually held the ambulance changes.
+        if not held_here:
+            continue
 
         actions = item.setdefault("actions_taken", [])
 
@@ -181,9 +194,10 @@ def release_ambulance(
             log["resource_reallocated"] = ambulance_id
             log["reallocated_to_priority"] = True
 
-        # The original incident remains handled, but its resource
-        # was taken away.
-        item["status"] = "reallocated"
+        # The incident lost its ambulance, so it is open again: mark it
+        # escalated so the monitoring loop re-checks it and dispatches the
+        # next ambulance that frees up.
+        item["status"] = "escalated"
 
     return {
         "success": True,

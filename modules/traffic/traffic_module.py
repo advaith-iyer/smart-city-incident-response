@@ -83,6 +83,19 @@ def block_road(roads: dict, road_id: str) -> bool:
     return False
 
 
+def unblock_road(roads: dict, road_id: str) -> bool:
+    """
+    Reopen a road once its blockage has been cleared.
+    """
+
+    for edge in roads["edges"]:
+        if edge["id"] == road_id:
+            edge["blocked"] = False
+            return True
+
+    return False
+
+
 def get_affected_road(incident: Incident) -> str | None:
     """
     Get the road ID affected by a traffic incident.
@@ -109,6 +122,13 @@ def find_alternate_route(roads: dict, incident: Incident):
     road_id = get_affected_road(incident)
     start = incident.severity_inputs.get("start_junction")
     destination = incident.severity_inputs.get("destination_junction")
+
+    # Rerouting to the junction you're already at is meaningless; route to
+    # the far end of the blocked road instead.
+    edge = next((e for e in roads["edges"] if e["id"] == road_id), None)
+    if edge and (not destination or destination == start):
+        start = start or edge["from"]
+        destination = edge["to"]
 
     if not road_id or not start or not destination:
         return None
@@ -251,6 +271,9 @@ def handle_incident(incident: Incident, world: dict) -> ModuleOutput:
         "road is open", "road reopened"
     )
     if any(keyword in incident.description.lower() for keyword in recovery_keywords):
+        cleared_road = get_affected_road(incident)
+        if cleared_road:
+            unblock_road(world["roads"], cleared_road)
         return build_module_output(
             incident=incident,
             severity=severity,

@@ -16,11 +16,24 @@ def generate_cascades(incident: Incident, result, world: dict) -> list[Incident]
     incident_type = incident.incident_type.lower()
     description = incident.description.lower()
 
+    # A module the orchestrator already ran for this incident (via a
+    # requires_* flag) must not be dispatched a second time as a cascade.
+    medical_already_dispatched = bool(
+        incident.severity_inputs.get("requires_medical")
+    )
+    traffic_already_dispatched = bool(
+        incident.severity_inputs.get("requires_traffic")
+    )
+
     # ---------------------------------------------------------
     # CASCADE 1:
     # Severe factory incident -> traffic disruption
     # ---------------------------------------------------------
-    if incident_type == "factory" and severity >= 4:
+    if (
+        incident_type == "factory"
+        and severity >= 4
+        and not traffic_already_dispatched
+    ):
         road = _find_nearest_open_road(incident.location, world)
 
         if road:
@@ -65,6 +78,7 @@ def generate_cascades(incident: Incident, result, world: dict) -> list[Incident]
     if (
         incident_type == "factory"
         and severity >= 4
+        and not medical_already_dispatched
         and any(keyword in description for keyword in injury_keywords)
     ):
         cascades.append(
@@ -91,14 +105,30 @@ def generate_cascades(incident: Incident, result, world: dict) -> list[Incident]
     # CASCADE 3:
     # Severe fire -> medical response
     # ---------------------------------------------------------
-    if incident_type in {"fire", "industrial_fire"} and severity >= 4:
+    if (
+        incident_type in {"fire", "industrial_fire"}
+        and severity >= 4
+        and not medical_already_dispatched
+    ):
+        people_at_risk = any(
+            keyword in description
+            for keyword in ("trapped", "injured", "people", "unconscious", "casualt")
+        )
+        # Give the Medical module concrete clinical signals to assess.
+        condition = (
+            "Occupants may have smoke inhalation with difficulty breathing "
+            "and burn injuries."
+            if people_at_risk
+            else "Bystanders may have minor burn injuries."
+        )
         cascades.append(
             Incident(
                 incident_id=f"{incident.incident_id}-MEDICAL",
                 incident_type="medical",
                 description=(
                     f"Automatic consequence of {incident.incident_id}: "
-                    f"people near the fire may require emergency medical care."
+                    f"people near the fire may require emergency medical care. "
+                    f"{condition}"
                 ),
                 location=incident.location,
                 severity_inputs={
